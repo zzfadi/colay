@@ -1,8 +1,17 @@
 # colay
 
+[![build](https://github.com/zzfadi/colay/actions/workflows/build.yml/badge.svg)](https://github.com/zzfadi/colay/actions/workflows/build.yml)
+[![macOS 13+](https://img.shields.io/badge/macOS-13%2B-lightgrey)](https://www.apple.com/macos/)
+[![Swift 5.9](https://img.shields.io/badge/Swift-5.9-orange)](https://swift.org)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 A procedural desktop companion for macOS. A small expressive character lives at the edge of your screen, watches your cursor, wanders across your windows, and can be scripted to fly, click, type, and dive into the focused window.
 
 It is built as a tiny game engine — entity-component scene graph, steering behaviors, a command scheduler, an event bus — all in under 4 KLOC of Swift + AppKit, no third-party dependencies.
+
+<p align="center">
+  <img src="docs/menubar.png" alt="colay sitting next to the macOS menu bar" width="320" />
+</p>
 
 <p align="center">
   <em>Status: experimental. API shape is still moving.</em>
