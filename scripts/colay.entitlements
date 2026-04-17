@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!--
+      Hardened runtime entitlements. We deliberately keep the list minimal:
+        - no network, no camera, no mic, no location, no files-user-selected
+        - AX and input synthesis are granted via System Settings at runtime, not at build
+      If you add anything that talks to the network, add the allow-jit /
+      allow-unsigned-executable-memory / network.client entitlements as needed.
+    -->
+    <key>com.apple.security.cs.allow-jit</key>                       <false/>
+    <key>com.apple.security.cs.allow-unsigned-executable-memory</key><false/>
+    <key>com.apple.security.cs.allow-dyld-environment-variables</key><false/>
+    <key>com.apple.security.cs.disable-library-validation</key>      <false/>
+</dict>
+</plist>

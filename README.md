@@ -10,7 +10,7 @@ A procedural desktop companion for macOS. A small expressive character lives at 
 It is built as a tiny game engine — entity-component scene graph, steering behaviors, a command scheduler, an event bus — all in under 4 KLOC of Swift + AppKit, no third-party dependencies.
 
 <p align="center">
-  <img src="docs/menubar.png" alt="colay sitting next to the macOS menu bar" width="320" />
+  <img src="docs/demo.gif" alt="colay wandering, hopping, and diving into the focused window" width="720" />
 </p>
 
 <p align="center">
@@ -40,13 +40,22 @@ I wanted a real substrate to experiment with on-screen agents. Most "desktop pet
 - **AX sensors** — debounced focused-window tracking using Accessibility APIs, delivered via an event bus.
 - **Input synthesis** — CGEvent-based click and type primitives (requires Accessibility permission).
 
-## Requirements
+## Install
 
-- macOS 13 Ventura or newer
-- Swift 5.9 (Xcode 15) or newer
-- Accessibility permission for input synthesis and AX window sensing (granted in **System Settings → Privacy & Security → Accessibility**)
+### Homebrew (recommended once a release is tagged)
 
-## Build & run
+```bash
+brew tap zzfadi/colay
+brew install --cask colay
+```
+
+> Requires a one-time Homebrew tap repo (`zzfadi/homebrew-colay`) with a cask formula pointing at the latest Releases DMG. See [docs/homebrew-tap.md](docs/homebrew-tap.md) for the template.
+
+### Download the DMG
+
+Grab the latest `colay-<version>.dmg` from the [Releases page](https://github.com/zzfadi/colay/releases), open it, and drag `colay.app` into `/Applications`.
+
+### Build from source
 
 ```bash
 git clone https://github.com/zzfadi/colay.git
@@ -57,6 +66,12 @@ swift run
 On first launch macOS will pop the standard Accessibility prompt. The character draws and tracks the cursor without it; `Snapshot` / `Highlight` / `Dive` and any scripted `click` / `type` need it granted.
 
 Multi-display setups are supported — the overlay spans the union of all connected screens, and AX bounds are converted relative to the primary display.
+
+## Requirements
+
+- macOS 13 Ventura or newer
+- Swift 5.9 (Xcode 15) or newer (only if building from source)
+- Accessibility permission for input synthesis and AX window sensing (granted in **System Settings → Privacy & Security → Accessibility**)
 
 ## Using it
 

@@ -1,0 +1,84 @@
+name: release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version override (defaults to tag)'
+        required: false
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Resolve version
+        id: ver
+        run: |
+          if [[ -n "${{ inputs.version }}" ]]; then
+            echo "version=${{ inputs.version }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Show toolchain
+        run: swift --version
+
+      - name: Build .app
+        run: |
+          chmod +x scripts/*.sh
+          scripts/build-app.sh "${{ steps.ver.outputs.version }}"
+
+      # Import Developer ID certificate into a temporary keychain only if the secret
+      # is present. Releases still build without it — they'll be ad-hoc signed and
+      # trigger the standard Gatekeeper warning.
+      - name: Import Developer ID certificate
+        if: env.DEVELOPER_ID_APPLICATION_P12 != ''
+        env:
+          DEVELOPER_ID_APPLICATION_P12: ${{ secrets.DEVELOPER_ID_APPLICATION_P12 }}
+          DEVELOPER_ID_APPLICATION_P12_PASSWORD: ${{ secrets.DEVELOPER_ID_APPLICATION_P12_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: |
+          KEYCHAIN=build.keychain
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security default-keychain -s "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -t 3600 -u "$KEYCHAIN"
+          echo "$DEVELOPER_ID_APPLICATION_P12" | base64 --decode > cert.p12
+          security import cert.p12 -k "$KEYCHAIN" -P "$DEVELOPER_ID_APPLICATION_P12_PASSWORD" \
+            -T /usr/bin/codesign -T /usr/bin/productsign
+          rm cert.p12
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          IDENTITY=$(security find-identity -v -p codesigning "$KEYCHAIN" | awk -F'"' '/Developer ID Application/ {print $2; exit}')
+          echo "DEVELOPER_ID_APPLICATION=$IDENTITY" >> "$GITHUB_ENV"
+
+      - name: Sign and (if possible) notarize
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: scripts/sign-and-notarize.sh
+
+      - name: Package DMG
+        run: scripts/make-dmg.sh "${{ steps.ver.outputs.version }}"
+
+      - name: Generate SHA-256
+        run: |
+          cd build
+          shasum -a 256 "colay-${{ steps.ver.outputs.version }}.dmg" > "colay-${{ steps.ver.outputs.version }}.dmg.sha256"
+
+      - name: Upload artifacts to the GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            build/colay-${{ steps.ver.outputs.version }}.dmg
+            build/colay-${{ steps.ver.outputs.version }}.dmg.sha256
+          generate_release_notes: true
+          fail_on_unmatched_files: true
