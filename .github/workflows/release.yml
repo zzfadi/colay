@@ -30,6 +30,9 @@ jobs:
       - name: Show toolchain
         run: swift --version
 
+      - name: Install create-dmg
+        run: brew install create-dmg
+
       - name: Build .app
         run: |
           chmod +x scripts/*.sh

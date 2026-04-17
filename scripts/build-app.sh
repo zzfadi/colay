@@ -39,6 +39,12 @@ if [[ -d "$RES_BUNDLE" ]]; then
   cp -R "$RES_BUNDLE" "$RES_DIR/"
 fi
 
+# App icon
+if [[ -f "$ROOT/docs/icon.png" ]]; then
+  echo "==> generating AppIcon.icns"
+  "$ROOT/scripts/make-icns.sh" "$ROOT/docs/icon.png" "$RES_DIR/AppIcon.icns"
+fi
+
 cat > "$CONTENTS/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -55,6 +61,7 @@ cat > "$CONTENTS/Info.plist" <<PLIST
   <key>LSMinimumSystemVersion</key>          <string>13.0</string>
   <key>LSUIElement</key>                     <true/>
   <key>NSHighResolutionCapable</key>         <true/>
+  <key>CFBundleIconFile</key>                <string>AppIcon</string>
   <key>NSHumanReadableCopyright</key>        <string>MIT License. See LICENSE.</string>
 </dict>
 </plist>
