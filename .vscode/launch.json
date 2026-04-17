@@ -1,0 +1,24 @@
+{
+    "configurations": [
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:colay}",
+            "name": "Debug colay",
+            "target": "colay",
+            "configuration": "debug",
+            "preLaunchTask": "swift: Build Debug colay"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:colay}",
+            "name": "Release colay",
+            "target": "colay",
+            "configuration": "release",
+            "preLaunchTask": "swift: Build Release colay"
+        }
+    ]
+}
