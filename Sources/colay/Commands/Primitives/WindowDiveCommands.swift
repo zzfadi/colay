@@ -184,6 +184,31 @@ private func smoothstep(_ x: CGFloat) -> CGFloat {
 // End-user commands. These orchestrate snapshot → effect → attachment state so the
 // pure visual primitives above don't need to know anything about windows or sensors.
 
+/// Well-known scene node name for the "avatar is attached here" marker. We use a
+/// name-based lookup so the emerge command can find and remove it without any shared
+/// state between the two commands.
+private let attachmentMarkerNodeName = "attachmentMarker"
+
+/// Spawn (or replace) the attachment marker node at the given overlay-local rect.
+/// Centralized so dive and emerge agree on geometry.
+private func spawnAttachmentMarker(for localRect: CGRect, services: Services) {
+    // If one is already present (e.g. quick re-dive without emerge), replace it.
+    services.scene.root.find(name: attachmentMarkerNodeName)?.removeFromParent()
+
+    let n = Node(name: attachmentMarkerNodeName)
+    n.transform.position = localRect.origin
+    n.transform.size = localRect.size
+    n.transform.alpha = 1
+    // Render behind the avatar (layer 10) but in front of anything else.
+    n.addComponent(RenderComponent(AttachmentMarkerDrawable(), layer: 5))
+    services.scene.root.addChild(n)
+}
+
+/// Remove the attachment marker if present. Safe to call unconditionally.
+private func removeAttachmentMarker(services: Services) {
+    services.scene.root.find(name: attachmentMarkerNodeName)?.removeFromParent()
+}
+
 /// "Dive into the currently focused window": snapshot AX, play the dive from wherever
 /// the avatar happens to be, then mark the avatar as attached to that window. The
 /// attachment component is the state-bearing handle; future commands like click/type/
@@ -191,6 +216,7 @@ private func smoothstep(_ x: CGFloat) -> CGFloat {
 final class DiveIntoFocusedWindowCommand: BaseCommand {
     private var child: Command?
     private var pendingAttachment: WindowTarget?
+    private var pendingLocalRect: CGRect?
 
     override func start(services: Services) {
         services.log.action("dive: capturing focused window…")
@@ -213,6 +239,7 @@ final class DiveIntoFocusedWindowCommand: BaseCommand {
                 axWindow: info.axWindow,
                 attachedAt: services.clock.time
             )
+            self.pendingLocalRect = local
             services.log.action("dive: entering \(info.appName ?? "window")")
 
             let effect = PlayDiveEffectCommand(from: start, to: impact)
@@ -227,6 +254,9 @@ final class DiveIntoFocusedWindowCommand: BaseCommand {
         if c.isFinished {
             if let t = pendingAttachment {
                 services.avatar.attachment.attach(t)
+                if let rect = pendingLocalRect {
+                    spawnAttachmentMarker(for: rect, services: services)
+                }
                 services.log.action("dive: attached to \(t.appName ?? "window")")
             }
             finish()
@@ -235,6 +265,7 @@ final class DiveIntoFocusedWindowCommand: BaseCommand {
 
     override func cancel(services: Services) {
         child?.cancel(services: services)
+        removeAttachmentMarker(services: services)
         super.cancel(services: services)
     }
 }
@@ -275,6 +306,7 @@ final class EmergeFromWindowCommand: BaseCommand {
         c.update(dt: dt, services: services)
         if c.isFinished {
             services.avatar.attachment.detach()
+            removeAttachmentMarker(services: services)
             services.log.action("emerge: detached")
             finish()
         }
@@ -288,6 +320,7 @@ final class EmergeFromWindowCommand: BaseCommand {
         n.transform.rotation = 0
         services.avatar.character.warpPhase = 0
         services.avatar.attachment.detach()
+        removeAttachmentMarker(services: services)
         super.cancel(services: services)
     }
 }
