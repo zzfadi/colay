@@ -16,16 +16,22 @@ import Foundation
 // The quartic easing (p⁴) does all the "pulled by gravity / suction" acceleration work.
 
 /// Dive: swoops from `from` into `to` while stretching and shrinking into the window.
-/// Caller must call `start()` with the avatar already at `from`, or pass a matching
-/// `from` — we set it explicitly so the effect is self-contained.
+/// Staged so the body visibly *travels* before collapsing, rather than vanishing at
+/// the target:
+///   • 0 – 65 %  — move toward the window with a gentle ease-in; body stays full size
+///                 but the vertical stretch (warpPhase) is already ramping up
+///   • 65 – 100 % — final suck-in at the window; scale and alpha collapse here
 final class PlayDiveEffectCommand: BaseCommand {
     let from: CGPoint
     let to: CGPoint
     let duration: TimeInterval
 
+    /// Fraction of the duration spent in the travel stage. The remainder is the collapse.
+    private let travelFrac: CGFloat = 0.65
+
     private var elapsed: TimeInterval = 0
 
-    init(from: CGPoint, to: CGPoint, duration: TimeInterval = 0.55) {
+    init(from: CGPoint, to: CGPoint, duration: TimeInterval = 0.75) {
         self.from = from
         self.to = to
         self.duration = duration
@@ -44,21 +50,33 @@ final class PlayDiveEffectCommand: BaseCommand {
         elapsed += dt
         let p = CGFloat(min(1.0, elapsed / duration))
 
-        // Quartic ease-in for position + scale: slow lean-in, then a hard pull at the
-        // end — the defining shape of a "being sucked in" motion.
-        let e = p * p * p * p
-
         let n = services.avatar.node
+
+        // Position — ease-in-cubic over the whole duration. Cubic (p³) is softer than
+        // quartic at the tail, which reads as "pulled" rather than "snapped" in.
+        let moveE = p * p * p
         n.transform.position = CGPoint(
-            x: from.x + (to.x - from.x) * e,
-            y: from.y + (to.y - from.y) * e
+            x: from.x + (to.x - from.x) * moveE,
+            y: from.y + (to.y - from.y) * moveE
         )
-        n.transform.scale = 1 - e
-        // warpPhase ramps linearly so the stretch is visible through the whole motion,
-        // not just at the end (where scale has already shrunk it to nothing).
-        services.avatar.character.warpPhase = Double(p)
-        // Tail-end alpha fade so the final frames disappear cleanly at the impact point.
-        n.transform.alpha = p < 0.85 ? 1 : Double(1 - (p - 0.85) / 0.15)
+
+        // Stretch builds smoothly over the full motion (smoothstep) so the body is
+        // already funneling before the final collapse — that's what sells the genie read.
+        services.avatar.character.warpPhase = Double(smoothstep(p))
+
+        if p < travelFrac {
+            // Travel stage: stay at full size; only warp is changing.
+            n.transform.scale = 1
+            n.transform.alpha = 1
+        } else {
+            // Collapse stage: shrink + fade the last 35% over a cubic ease-in so the
+            // disappearance itself has a "pulled through the hole" acceleration.
+            let k = (p - travelFrac) / (1 - travelFrac)   // 0 → 1
+            let ke = k * k * k
+            n.transform.scale = 1 - ke
+            // Alpha fades only in the very last sliver so the collapse is visible.
+            n.transform.alpha = k < 0.75 ? 1 : Double(1 - (k - 0.75) / 0.25)
+        }
 
         if p >= 1.0 {
             n.transform.scale = 0
@@ -74,17 +92,24 @@ final class PlayDiveEffectCommand: BaseCommand {
     }
 }
 
-/// Emerge: the exact reverse — materializes at `from` (inside the window) and rises to
-/// `to` (above the window) while un-stretching and scaling back to 1. Curves are mirror
-/// images of dive's so the two animations compose into one continuous gesture.
+/// Emerge: the mirror of dive, also staged. The avatar first **bulges out of the
+/// window** (un-stretching, scaling up, fading in) without travelling, then **rises**
+/// smoothly to the exit point. Without staging the cubic ease-out covered ~60 % of the
+/// distance in the first 25 % of time — the body appeared to teleport up and then
+/// snap back when behaviors took over.
+///   • 0 – 35 %  — bulge out at `from`: scale 0→1, warpPhase 1→0, alpha 0→1
+///   • 35 – 100 % — rise to `to` with a soft ease-out so it arrives, not crashes
 final class PlayEmergeEffectCommand: BaseCommand {
     let from: CGPoint
     let to: CGPoint
     let duration: TimeInterval
 
+    /// Fraction of the duration spent bulging in place before any travel begins.
+    private let bulgeFrac: CGFloat = 0.35
+
     private var elapsed: TimeInterval = 0
 
-    init(from: CGPoint, to: CGPoint, duration: TimeInterval = 0.55) {
+    init(from: CGPoint, to: CGPoint, duration: TimeInterval = 0.85) {
         self.from = from
         self.to = to
         self.duration = duration
@@ -103,21 +128,32 @@ final class PlayEmergeEffectCommand: BaseCommand {
         elapsed += dt
         let p = CGFloat(min(1.0, elapsed / duration))
 
-        // Quartic ease-out: explodes out fast, settles gently — mirror of the dive's
-        // ease-in so the curves line up back-to-back.
-        let e = 1 - pow(1 - p, 4)
-
         let n = services.avatar.node
-        n.transform.position = CGPoint(
-            x: from.x + (to.x - from.x) * e,
-            y: from.y + (to.y - from.y) * e
-        )
-        n.transform.scale = e
-        services.avatar.character.warpPhase = Double(1 - p)
-        // Fast fade-in mirroring the dive's fade-out at the tail.
-        n.transform.alpha = p < 0.15 ? Double(p / 0.15) : 1
+
+        if p < bulgeFrac {
+            // Bulge stage: hold position, push the body out of the opening.
+            let k = p / bulgeFrac                       // 0 → 1
+            let ke = 1 - pow(1 - k, 3)                  // ease-out-cubic
+            n.transform.position = from
+            n.transform.scale = ke
+            n.transform.alpha = Double(min(1, k * 1.4)) // fade in slightly faster than scale
+            services.avatar.character.warpPhase = Double(1 - ke)
+        } else {
+            // Rise stage: smooth ease-out from `from` to `to`. Quadratic feels gentler
+            // than cubic for a "settling" motion — no perceived overshoot.
+            let k = (p - bulgeFrac) / (1 - bulgeFrac)   // 0 → 1
+            let ke = 1 - (1 - k) * (1 - k)              // ease-out-quad
+            n.transform.position = CGPoint(
+                x: from.x + (to.x - from.x) * ke,
+                y: from.y + (to.y - from.y) * ke
+            )
+            n.transform.scale = 1
+            n.transform.alpha = 1
+            services.avatar.character.warpPhase = 0
+        }
 
         if p >= 1.0 {
+            n.transform.position = to
             n.transform.scale = 1
             n.transform.alpha = 1
             services.avatar.character.warpPhase = 0
@@ -132,6 +168,15 @@ final class PlayEmergeEffectCommand: BaseCommand {
         services.avatar.character.warpPhase = 0
         super.cancel(services: services)
     }
+}
+
+// MARK: - Easing helpers
+
+/// Smoothstep on [0, 1]. Zero slope at both ends, monotonic, cheap.
+@inline(__always)
+private func smoothstep(_ x: CGFloat) -> CGFloat {
+    let t = max(0, min(1, x))
+    return t * t * (3 - 2 * t)
 }
 
 // MARK: - Composites
@@ -165,7 +210,7 @@ final class DiveIntoFocusedWindowCommand: BaseCommand {
                 appName: info.appName,
                 title: info.windowTitle,
                 bounds: bounds,
-                axWindow: nil,
+                axWindow: info.axWindow,
                 attachedAt: services.clock.time
             )
             services.log.action("dive: entering \(info.appName ?? "window")")
@@ -209,9 +254,15 @@ final class EmergeFromWindowCommand: BaseCommand {
         }
         let local = services.overlay.screenRectToLocal(t.bounds)
         let impact = CGPoint(x: local.midX, y: local.midY)
-        // Exit above the window — symmetrical with where a "dive from above" would enter.
-        // Distance is shorter than dive travel so it reads as a pop-out rather than a flight.
-        let exit = CGPoint(x: local.midX, y: local.maxY + 80)
+        // Exit just above the window's top edge — close enough that the avatar lands
+        // visibly *next to* the window it came out of, far enough to read as "out".
+        // Clamp into the overlay so it can't fly off-screen on windows near the top.
+        let overlay = services.overlay.frame
+        let margin: CGFloat = 40
+        let rawExitY = local.maxY + 24
+        let exitY = max(margin, min(overlay.height - margin, rawExitY))
+        let exitX = max(margin, min(overlay.width - margin, local.midX))
+        let exit = CGPoint(x: exitX, y: exitY)
 
         services.log.action("emerge: leaving \(t.appName ?? "window")")
         let effect = PlayEmergeEffectCommand(from: impact, to: exit)

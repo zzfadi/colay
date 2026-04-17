@@ -8,11 +8,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var status: StatusItemController!
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Prompt once for Accessibility — needed for AX window sensing and CGEvent input
+        // synthesis. The character itself draws and tracks the cursor without it.
+        let trusted = AccessibilityPermission.ensureTrusted(prompt: true)
+
         overlay = OverlayWindowController()
         overlay.showWindow(nil)
 
         engine = Engine(overlay: overlay)
         engine.start()
+        if !trusted {
+            engine.log.warn("Accessibility permission not granted — Dive / Highlight / click / type will no-op until it is enabled in System Settings → Privacy & Security → Accessibility.")
+        }
 
         status = StatusItemController(
             registry: engine.registry,
@@ -25,6 +32,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         status.onTogglePause = { [weak self] in self?.engine.togglePause() }
         status.onToggleSlowMo = { [weak self] in self?.engine.toggleSlowMo() }
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        engine?.stop()
     }
 
     private func demoURL() -> URL? {

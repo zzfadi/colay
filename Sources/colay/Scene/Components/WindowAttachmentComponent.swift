@@ -14,7 +14,7 @@ struct WindowTarget {
     let appName: String?
     let title: String?
     let bounds: CGRect          // screen coords, top-left origin, captured at attach time
-    let axWindow: AXUIElement?  // nil when created in a test/preview context
+    let axWindow: AXUIElement?  // retained AX handle from the sensor; nil only in tests
     let attachedAt: TimeInterval
 }
 

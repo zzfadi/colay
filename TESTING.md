@@ -66,5 +66,5 @@ Run on macOS 13+ with Accessibility granted:
 
 1. `CommandRegistry.current` is a static used as a thread-local during composite construction. A test that constructs two nested parallel-of-sequence commands must verify the stack restores correctly.
 2. `SensorService` sees the utility queue and main queue cross each other. A test that races `requestFocusedWindowSnapshot` against a real workspace-activation notification should show no `lastInfo` corruption.
-3. `StayOnScreenBehavior` — on a resized overlay (e.g. user changes main display mid-run) bounds should track. Not currently verified.
-4. `WindowTarget.axWindow` is always `nil` today — when real AX-element retention is added, ensure the ref survives focus changes and is released on `detach`.
+3. `StayOnScreenBehavior` — on a resized overlay (e.g. user reconfigures displays mid-run) bounds should track. Not currently verified.
+4. `WindowTarget.axWindow` is now retained from `FocusedWindowInfo`. Verify it remains valid across focus changes and that `detach()` releases the reference (Swift ARC handles this, but worth a smoke test before adding AX-driven “click inside attached window” commands).

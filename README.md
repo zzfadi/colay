@@ -45,7 +45,9 @@ cd colay
 swift run
 ```
 
-The first run will prompt for Accessibility permission when you use the `Snapshot` / `Highlight` / `Dive` actions or run a script that clicks/types.
+On first launch macOS will pop the standard Accessibility prompt. The character draws and tracks the cursor without it; `Snapshot` / `Highlight` / `Dive` and any scripted `click` / `type` need it granted.
+
+Multi-display setups are supported — the overlay spans the union of all connected screens, and AX bounds are converted relative to the primary display.
 
 ## Using it
 
@@ -172,10 +174,12 @@ Sources/colay/
     Command.swift                  protocol + BaseCommand
     CommandParams.swift, Registry, Scheduler, Registration
     Services.swift                 typed service locator
-    Primitives/                    Motion, System, WindowDive, LookAroundWindows
+    Primitives/                    Motion, System, WindowDive
   Scripts/ScriptLoader.swift       JSON parser (Commands built by registry)
   Sensors/SensorService.swift      AX focused-window probe, debounced, bg queue
-  Input/InputSynth.swift           CGEvent click + type
+  Input/
+    InputSynth.swift               CGEvent click + type
+    AccessibilityPermission.swift  one-time prompt helper
   Status/                          StatusItemController + DashboardViewController
   Resources/demo.json              sample script
 ```

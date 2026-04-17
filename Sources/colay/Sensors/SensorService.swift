@@ -9,6 +9,7 @@ struct FocusedWindowInfo: Event {
     let appName: String?
     let windowTitle: String?
     let bounds: CGRect?            // in screen coords, top-left origin (as AX returns)
+    let axWindow: AXUIElement?     // retained AX handle; nil when probe failed
     let timestamp: TimeInterval
 
     var debugDescription: String {
@@ -119,14 +120,16 @@ final class SensorService {
         let ts = CFAbsoluteTimeGetCurrent()
         let app = NSWorkspace.shared.frontmostApplication
         guard let pid = app?.processIdentifier else {
-            return FocusedWindowInfo(pid: 0, appName: nil, windowTitle: nil, bounds: nil, timestamp: ts)
+            return FocusedWindowInfo(pid: 0, appName: nil, windowTitle: nil,
+                                     bounds: nil, axWindow: nil, timestamp: ts)
         }
         let axApp = AXUIElementCreateApplication(pid)
         var ref: CFTypeRef?
         let err = AXUIElementCopyAttributeValue(axApp, kAXFocusedWindowAttribute as CFString, &ref)
         guard err == .success, let v = ref else {
             return FocusedWindowInfo(pid: pid, appName: app?.localizedName,
-                                     windowTitle: nil, bounds: nil, timestamp: ts)
+                                     windowTitle: nil, bounds: nil,
+                                     axWindow: nil, timestamp: ts)
         }
         let window = v as! AXUIElement
 
@@ -146,6 +149,7 @@ final class SensorService {
             bounds = CGRect(origin: p, size: s)
         }
         return FocusedWindowInfo(pid: pid, appName: app?.localizedName,
-                                 windowTitle: title, bounds: bounds, timestamp: ts)
+                                 windowTitle: title, bounds: bounds,
+                                 axWindow: window, timestamp: ts)
     }
 }

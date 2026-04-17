@@ -3,11 +3,22 @@ import CoreGraphics
 import Foundation
 
 /// Synthesizes mouse/keyboard events via CGEvent. Requires Accessibility permission.
+///
+/// Note on permissions: CGEvent posting silently fails (or only moves the cursor but
+/// doesn't click) if the app is not trusted by the Accessibility subsystem. Call
+/// `AccessibilityPermission.ensureTrusted()` at startup to prompt the user.
 final class InputSynth {
+    /// Primary-display height (the screen whose Cocoa origin is (0, 0)). CGEvent mouse
+    /// coordinates are top-left-origin global screen coords measured from that display.
+    private var primaryScreenHeight: CGFloat {
+        NSScreen.screens.first(where: { $0.frame.origin == .zero })?.frame.height
+            ?? NSScreen.main?.frame.height
+            ?? 0
+    }
+
     func click(at screenPoint: CGPoint, button: String) {
-        // CGEvent uses top-left origin; NSEvent-style coords are bottom-left.
-        let screenHeight = NSScreen.screens.first?.frame.height ?? 0
-        let p = CGPoint(x: screenPoint.x, y: screenHeight - screenPoint.y)
+        // CGEvent uses top-left origin; caller passed NSEvent-style (bottom-left).
+        let p = CGPoint(x: screenPoint.x, y: primaryScreenHeight - screenPoint.y)
 
         let (down, up, mb): (CGEventType, CGEventType, CGMouseButton)
         switch button.lowercased() {
